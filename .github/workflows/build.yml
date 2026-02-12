@@ -1,43 +1,50 @@
-name: Build Lampac Multi-Platform
+name: Build Lampac
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # ручной запуск
 
 jobs:
   build:
-    strategy:
-      matrix:
-        runtime: [linux-x64, win-x64, linux-arm64, osx-x64]
-        include:
-          - runtime: linux-x64
-            os: ubuntu-latest
-          - runtime: win-x64
-            os: windows-latest
-          - runtime: linux-arm64
-            os: ubuntu-latest
-          - runtime: osx-x64
-            os: macos-latest
-    
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-dotnet@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
       with:
-        dotnet-version: 8.0.x
-    
-    - name: Make build.sh executable (Unix)
-      if: runner.os != 'Windows'
+        fetch-depth: 0  # загружаем всю историю, нужно для версионирования
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x  # Lampac требует .NET 8
+
+    - name: Make build.sh executable
       run: chmod +x build.sh
-    
-    - name: Build for ${{ matrix.runtime }}
-      run: |
-        # Устанавливаем переменную окружения для рантайма
-        export RUNTIME=${{ matrix.runtime }}
-        ./build.sh
-      shell: bash
-    
-    - name: Upload ${{ matrix.runtime }}
+
+    - name: Run build script
+      run: ./build.sh
+
+    - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: lampac-${{ matrix.runtime }}
-        path: ./publish/
+        name: lampac-full-build
+        path: ./publish/  # ✨ ВСЯ сборка здесь
+        if-no-files-found: error
+        retention-days: 7  # хранить 7 дней
+
+    - name: Create zip archive
+      run: |
+        cd ./publish
+        zip -r ../lampac-release.zip .
+        cd ..
+
+    - name: Upload zip artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: lampac-release-zip
+        path: ./lampac-release.zip
+        retention-days: 7
